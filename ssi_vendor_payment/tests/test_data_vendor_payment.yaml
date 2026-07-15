@@ -1,0 +1,231 @@
+setup:
+  steps:
+    - step: "Create vendor partner"
+      action: "create"
+      model: "res.partner"
+      save_as: "vendor"
+      values:
+        name: "Test Vendor Payment Partner"
+        is_company: true
+
+    - step: "Create bank journal"
+      action: "create"
+      model: "account.journal"
+      save_as: "journal"
+      values:
+        name: "Test Vendor Payment Bank Journal"
+        type: "bank"
+
+scenarios:
+  - name: "Create Vendor Payment forces outbound supplier defaults"
+    steps:
+      - step: "Create payment without payment/partner type"
+        action: "create"
+        model: "vendor_payment"
+        save_as: "payment"
+        values:
+          partner_id: "REC: vendor.id"
+          amount: 150000.0
+          journal_id: "REC: journal.id"
+
+      - step: "Assert defaults applied"
+        action: "assert"
+        target: "payment"
+        asserts:
+          payment_type:
+            type: "value"
+            expected: "outbound"
+          partner_type:
+            type: "value"
+            expected: "supplier"
+          state:
+            type: "value"
+            expected: "draft"
+
+  - name: "Global rule hides customer receipt from Vendor Payment"
+    steps:
+      - step: "Create customer partner"
+        action: "create"
+        model: "res.partner"
+        save_as: "customer"
+        values:
+          name: "Test Customer Receipt Partner"
+          is_company: true
+
+      - step: "Create customer receipt via account.payment"
+        action: "create"
+        model: "account.payment"
+        save_as: "customer_receipt"
+        values:
+          payment_type: "inbound"
+          partner_type: "customer"
+          partner_id: "REC: customer.id"
+          amount: 200000.0
+          journal_id: "REC: journal.id"
+
+      - step: "Create vendor payment via vendor_payment"
+        action: "create"
+        model: "vendor_payment"
+        save_as: "payment"
+        values:
+          partner_id: "REC: vendor.id"
+          amount: 175000.0
+          journal_id: "REC: journal.id"
+
+      - step: "Customer receipt is not visible through vendor_payment"
+        action: "search"
+        model: "vendor_payment"
+        as_user: "base.user_admin"
+        domain:
+          - ["id", "=", "REC: customer_receipt.id"]
+        save_as: "found_customer"
+        expect_count: 0
+
+      - step: "Vendor payment is visible through vendor_payment"
+        action: "search"
+        model: "vendor_payment"
+        as_user: "base.user_admin"
+        domain:
+          - ["id", "=", "REC: payment.id"]
+        save_as: "found_payment"
+        expect_count: 1
+
+  - name: "Inherited workflow methods post and reset to draft"
+    options: {auto_refresh: true}
+    steps:
+      - step: "Create payment"
+        action: "create"
+        model: "vendor_payment"
+        save_as: "payment"
+        values:
+          partner_id: "REC: vendor.id"
+          amount: 125000.0
+          journal_id: "REC: journal.id"
+
+      - step: "Assert draft"
+        action: "assert"
+        target: "payment"
+        asserts:
+          state:
+            type: "value"
+            expected: "draft"
+
+      - step: "Post payment"
+        action: "call"
+        target: "payment"
+        method: "action_post"
+        as_user: "base.user_admin"
+
+      - step: "Assert posted"
+        action: "assert"
+        target: "payment"
+        refresh: true
+        asserts:
+          state:
+            type: "value"
+            expected: "posted"
+
+      - step: "Reset payment to draft"
+        action: "call"
+        target: "payment"
+        method: "action_draft"
+        as_user: "base.user_admin"
+
+      - step: "Assert back to draft"
+        action: "assert"
+        target: "payment"
+        refresh: true
+        asserts:
+          state:
+            type: "value"
+            expected: "draft"
+
+  - name: "Create overrides forced customer values back to vendor payment"
+    steps:
+      - step: "Create payment trying to force inbound customer"
+        action: "create"
+        model: "vendor_payment"
+        save_as: "payment"
+        values:
+          payment_type: "inbound"
+          partner_type: "customer"
+          partner_id: "REC: vendor.id"
+          amount: 90000.0
+          journal_id: "REC: journal.id"
+
+      - step: "Assert create() forced outbound supplier"
+        action: "assert"
+        target: "payment"
+        asserts:
+          payment_type:
+            type: "value"
+            expected: "outbound"
+          partner_type:
+            type: "value"
+            expected: "supplier"
+
+  - name: "Restricted user (no account.move ACL) can create and post payment via sudo"
+    options: {auto_refresh: true}
+    steps:
+      - step: "Create restricted vendor-payment user (no account.move ACL)"
+        action: "create"
+        model: "res.users"
+        save_as: "payment_user"
+        values:
+          name: "Vendor Payment Only User"
+          login: "vendor_payment_only_user"
+          groups_id:
+            - - 6
+              - 0
+              - - "REF: base.group_user"
+                - "REF: ssi_financial_accounting.vendor_payment_user_group"
+                - "REF: ssi_financial_accounting.vendor_payment_company_group"
+
+      - step:
+          "Create payment as restricted user -> must succeed (sudo materializes
+          account.move)"
+        action: "create"
+        model: "vendor_payment"
+        as_user: "payment_user"
+        save_as: "payment"
+        values:
+          partner_id: "REC: vendor.id"
+          amount: 250000.0
+          journal_id: "REC: journal.id"
+
+      - step: "Assert draft + a delegated account.move was created"
+        action: "assert"
+        target: "payment"
+        asserts:
+          state:
+            type: "value"
+            expected: "draft"
+          move_id:
+            type: "value"
+            operator: "is_truthy"
+
+      - step: "Assert audit kept: sudo() in v14 keeps the real user as create_uid"
+        action: "assert"
+        target: "payment"
+        asserts:
+          create_uid:
+            type: "m2o"
+            expected: "REC: payment_user"
+          move_id.create_uid:
+            type: "m2o"
+            expected: "REC: payment_user"
+
+      - step: "Post payment as restricted user -> must succeed (posts account.move)"
+        action: "call"
+        target: "payment"
+        method: "action_post"
+        as_user: "payment_user"
+
+      - step: "Assert posted"
+        action: "assert"
+        target: "payment"
+        refresh: true
+        asserts:
+          state:
+            type: "value"
+            expected: "posted"
