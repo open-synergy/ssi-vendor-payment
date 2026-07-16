@@ -1,0 +1,238 @@
+scenarios:
+  - name: "Posted payment propagates operating unit to move and all move lines"
+    steps:
+      - step: "Create vendor partner"
+        action: "create"
+        model: "res.partner"
+        save_as: "vendor"
+        values:
+          name: "Test Vendor Payment OU Partner 1"
+          is_company: true
+
+      - step: "Create partner for operating unit A"
+        action: "create"
+        model: "res.partner"
+        save_as: "ou_partner"
+        values:
+          name: "Test OU-A Partner 1"
+
+      - step: "Create operating unit A"
+        action: "create"
+        model: "operating.unit"
+        save_as: "ou"
+        values:
+          name: "Test Vendor Payment OU-A 1"
+          code: "VPOUA1"
+          partner_id: "REC: ou_partner.id"
+
+      - step: "Create bank journal scoped to operating unit A"
+        action: "create"
+        model: "account.journal"
+        save_as: "journal"
+        values:
+          name: "Test Vendor Payment OU Bank Journal 1"
+          code: "VPJ1"
+          type: "bank"
+          operating_unit_ids:
+            - - 6
+              - 0
+              - - "REC: ou.id"
+
+      - step: "Create payment with operating unit A"
+        action: "create"
+        model: "vendor_payment"
+        save_as: "payment"
+        values:
+          partner_id: "REC: vendor.id"
+          amount: 250000.0
+          journal_id: "REC: journal.id"
+          operating_unit_id: "REC: ou.id"
+
+      - step: "Delegated move already carries the operating unit at creation"
+        action: "assert"
+        target: "payment"
+        asserts:
+          operating_unit_id:
+            type: "m2o"
+            expected: "REC: ou"
+
+      - step: "Post the payment"
+        action: "call"
+        target: "payment"
+        method: "action_post"
+        as_user: "base.user_admin"
+
+      - step: "Fetch the generated account move"
+        action: "search"
+        model: "account.move"
+        domain:
+          - ["id", "=", "REC: payment.move_id.id"]
+        save_as: "move"
+        expect_count: 1
+
+      - step: "Move keeps the same operating unit as the payment"
+        action: "assert"
+        target: "move"
+        asserts:
+          operating_unit_id:
+            type: "m2o"
+            expected: "REC: ou"
+
+      - step: "Delegation: payment OU equals move OU"
+        action: "assert"
+        target: "payment"
+        asserts:
+          operating_unit_id:
+            type: "m2o"
+            expected: "REC: ou"
+          move_id:
+            type: "m2o"
+            expected: "REC: move"
+
+      - step: "The posted move has exactly two journal lines"
+        action: "assert"
+        target: "move"
+        asserts:
+          line_ids:
+            type: "o2m"
+            check: "count"
+            expected_count: 2
+
+      - step: "Every move line carries operating unit A"
+        action: "search"
+        model: "account.move.line"
+        domain:
+          - ["move_id", "=", "REC: move.id"]
+          - ["operating_unit_id", "=", "REC: ou.id"]
+        save_as: "ou_lines"
+        expect_count: 2
+
+      - step: "No move line carries a different operating unit"
+        action: "search"
+        model: "account.move.line"
+        domain:
+          - ["move_id", "=", "REC: move.id"]
+          - ["operating_unit_id", "!=", "REC: ou.id"]
+        save_as: "wrong_lines"
+        expect_count: 0
+
+  - name: "Operating Unit record rule scopes vendor payment visibility"
+    steps:
+      - step: "Create vendor partner"
+        action: "create"
+        model: "res.partner"
+        save_as: "vendor"
+        values:
+          name: "Test Vendor Payment OU Partner 2"
+          is_company: true
+
+      - step: "Create partner for operating unit A"
+        action: "create"
+        model: "res.partner"
+        save_as: "ou_partner"
+        values:
+          name: "Test OU-A Partner 2"
+
+      - step: "Create operating unit A"
+        action: "create"
+        model: "operating.unit"
+        save_as: "ou"
+        values:
+          name: "Test Vendor Payment OU-A 2"
+          code: "VPOUA2"
+          partner_id: "REC: ou_partner.id"
+
+      - step: "Create bank journal scoped to operating unit A"
+        action: "create"
+        model: "account.journal"
+        save_as: "journal"
+        values:
+          name: "Test Vendor Payment OU Bank Journal 2"
+          code: "VPJ2"
+          type: "bank"
+          operating_unit_ids:
+            - - 6
+              - 0
+              - - "REC: ou.id"
+
+      - step: "Create payment with operating unit A"
+        action: "create"
+        model: "vendor_payment"
+        save_as: "payment"
+        values:
+          partner_id: "REC: vendor.id"
+          amount: 175000.0
+          journal_id: "REC: journal.id"
+          operating_unit_id: "REC: ou.id"
+
+      - step: "Create partner for operating unit B"
+        action: "create"
+        model: "res.partner"
+        save_as: "ou_partner_b"
+        values:
+          name: "Test OU-B Partner 2"
+
+      - step: "Create operating unit B"
+        action: "create"
+        model: "operating.unit"
+        save_as: "ou_b"
+        values:
+          name: "Test Vendor Payment OU-B 2"
+          code: "VPOUB2"
+          partner_id: "REC: ou_partner_b.id"
+
+      - step: "Create user allowed on operating unit A"
+        action: "create"
+        model: "res.users"
+        save_as: "user_a"
+        values:
+          name: "Vendor Payment OU-A User"
+          login: "vendor_payment_ou_a_user"
+          groups_id:
+            - - 6
+              - 0
+              - - "REF: base.group_user"
+                - "REF: ssi_financial_accounting.vendor_payment_user_group"
+                - "REF:
+                  ssi_financial_accounting_operating_unit.vendor_payment_ou_group"
+          assigned_operating_unit_ids:
+            - - 6
+              - 0
+              - - "REC: ou.id"
+
+      - step: "Create user allowed on operating unit B only"
+        action: "create"
+        model: "res.users"
+        save_as: "user_b"
+        values:
+          name: "Vendor Payment OU-B User"
+          login: "vendor_payment_ou_b_user"
+          groups_id:
+            - - 6
+              - 0
+              - - "REF: base.group_user"
+                - "REF: ssi_financial_accounting.vendor_payment_user_group"
+                - "REF:
+                  ssi_financial_accounting_operating_unit.vendor_payment_ou_group"
+          assigned_operating_unit_ids:
+            - - 6
+              - 0
+              - - "REC: ou_b.id"
+
+      - step: "User of operating unit A can see the payment"
+        action: "search"
+        model: "vendor_payment"
+        as_user: "user_a"
+        domain:
+          - ["id", "=", "REC: payment.id"]
+        save_as: "seen_by_a"
+        expect_count: 1
+
+      - step: "User of operating unit B cannot see the payment"
+        action: "search"
+        model: "vendor_payment"
+        as_user: "user_b"
+        domain:
+          - ["id", "=", "REC: payment.id"]
+        save_as: "seen_by_b"
+        expect_count: 0
