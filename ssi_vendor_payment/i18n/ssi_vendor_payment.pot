@@ -639,6 +639,11 @@ msgid "Number of unread messages"
 msgstr ""
 
 #. module: ssi_vendor_payment
+#: model:ir.model.fields,field_description:ssi_vendor_payment.field_vendor_payment__operating_unit_id
+msgid "Operating Unit"
+msgstr ""
+
+#. module: ssi_vendor_payment
 #: model:ir.model.fields,field_description:ssi_vendor_payment.field_vendor_payment__invoice_origin
 msgid "Origin"
 msgstr ""
