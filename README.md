@@ -18,7 +18,7 @@ Available addons
 ----------------
 addon | version | maintainers | summary
 --- | --- | --- | ---
-[ssi_vendor_payment](ssi_vendor_payment/) | 14.0.1.0.0 |  | Vendor Payment
+[ssi_vendor_payment](ssi_vendor_payment/) | 14.0.1.1.0 |  | Vendor Payment
 [ssi_vendor_payment_operating_unit](ssi_vendor_payment_operating_unit/) | 14.0.1.0.0 |  | Vendor Payment + Operating Unit
 
 [//]: # (end addons)
