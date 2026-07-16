@@ -193,8 +193,7 @@ scenarios:
               - 0
               - - "REF: base.group_user"
                 - "REF: ssi_financial_accounting.vendor_payment_user_group"
-                - "REF:
-                  ssi_financial_accounting_operating_unit.vendor_payment_ou_group"
+                - "REF: ssi_financial_accounting_operating_unit.vendor_payment_ou_group"
           assigned_operating_unit_ids:
             - - 6
               - 0
@@ -212,8 +211,7 @@ scenarios:
               - 0
               - - "REF: base.group_user"
                 - "REF: ssi_financial_accounting.vendor_payment_user_group"
-                - "REF:
-                  ssi_financial_accounting_operating_unit.vendor_payment_ou_group"
+                - "REF: ssi_financial_accounting_operating_unit.vendor_payment_ou_group"
           assigned_operating_unit_ids:
             - - 6
               - 0
